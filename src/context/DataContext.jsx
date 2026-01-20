@@ -136,8 +136,11 @@ export const DataProvider = ({ children, currentUser }) => {
     // Projects
     const addProject = async (project) => {
         // Map camelCase to snake_case
+        // EXCLUDING 'revenue' because the DB table doesn't have it yet.
+        const { revenue, ...rest } = project;
+
         const dbProject = {
-            ...project,
+            ...rest,
             created_at: new Date().toISOString()
         };
         // If we have specific fields that need mapping, do it here.
