@@ -18,7 +18,17 @@ export const DataProvider = ({ children, currentUser }) => {
             setLoading(true);
 
             const { data: tasksData, error: taskError } = await supabase.from('tasks').select('*');
-            if (tasksData) setTasks(tasksData);
+            if (tasksData) {
+                // Map DB snake_case -> App camelCase
+                const mappedTasks = tasksData.map(t => ({
+                    ...t,
+                    dueDate: t.due_date,
+                    plannedDay: t.planned_day,
+                    completedAt: t.completed_at,
+                    projectId: t.project_id
+                }));
+                setTasks(mappedTasks);
+            }
             if (taskError) console.error('Error fetching tasks:', taskError);
 
             const { data: projectsData, error: projError } = await supabase.from('projects').select('*');
@@ -37,9 +47,21 @@ export const DataProvider = ({ children, currentUser }) => {
             .channel('public:tasks')
             .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks' }, (payload) => {
                 if (payload.eventType === 'INSERT') {
-                    setTasks(prev => [...prev, payload.new]);
+                    // Map new task
+                    const newItem = {
+                        ...payload.new,
+                        dueDate: payload.new.due_date,
+                        plannedDay: payload.new.planned_day,
+                        completedAt: payload.new.completed_at
+                    };
+                    setTasks(prev => [...prev, newItem]);
                 } else if (payload.eventType === 'UPDATE') {
-                    setTasks(prev => prev.map(t => t.id === payload.new.id ? payload.new : t));
+                    setTasks(prev => prev.map(t => t.id === payload.new.id ? {
+                        ...payload.new,
+                        dueDate: payload.new.due_date,
+                        plannedDay: payload.new.planned_day,
+                        completedAt: payload.new.completed_at
+                    } : t));
                 } else if (payload.eventType === 'DELETE') {
                     setTasks(prev => prev.filter(t => t.id !== payload.old.id));
                 }
@@ -55,20 +77,18 @@ export const DataProvider = ({ children, currentUser }) => {
 
     // Tasks
     const addTask = async (task) => {
-        // Optimistic update (optional, but skipping for simplicity first)
-        // Only need to send data excluding ID/created_at which DB handles, 
-        // OR we can generate ID here if we want optimistic UI. 
-        // Let's rely on Realtime for now to keep it simple, or manual state update + DB call.
-
-        // Manual state update for instant feedback
-        // const tempId = Math.random().toString();
-        // setTasks(prev => [...prev, { ...task, id: tempId, status: 'pending' }]); 
-
-        const { data, error } = await supabase.from('tasks').insert([{
-            ...task,
+        // Map camelCase to snake_case for DB
+        const dbTask = {
+            title: task.title,
+            priority: task.priority,
             status: 'pending',
+            due_date: task.dueDate, // Map dueDate -> due_date
+            assignee: task.assignee,
+            planned_day: task.plannedDay, // Map plannedDay -> planned_day
             created_at: new Date().toISOString()
-        }]).select();
+        };
+
+        const { data, error } = await supabase.from('tasks').insert([dbTask]).select();
 
         if (error) {
             console.error('Error adding task:', error);
@@ -77,10 +97,18 @@ export const DataProvider = ({ children, currentUser }) => {
     };
 
     const updateTask = async (id, updates) => {
-        // Optimistic UI
+        // Optimistic UI (keeping existing structure, but mapping for DB)
         setTasks(prev => prev.map(t => t.id === id ? { ...t, ...updates } : t));
 
-        const { error } = await supabase.from('tasks').update(updates).eq('id', id);
+        // Map updates to snake_case
+        const dbUpdates = {};
+        if (updates.status) dbUpdates.status = updates.status;
+        if (updates.completedAt !== undefined) dbUpdates.completed_at = updates.completedAt; // Map completedAt
+        if (updates.dueDate) dbUpdates.due_date = updates.dueDate;
+        if (updates.assignee) dbUpdates.assignee = updates.assignee;
+        if (updates.plannedDay) dbUpdates.planned_day = updates.plannedDay;
+
+        const { error } = await supabase.from('tasks').update(dbUpdates).eq('id', id);
         if (error) console.error('Error updating task:', error);
     };
 
