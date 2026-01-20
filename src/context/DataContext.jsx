@@ -152,9 +152,10 @@ export const DataProvider = ({ children, currentUser }) => {
         if (error) {
             console.error('Error adding project:', error);
             alert('Error adding project. Check console.');
-        } else if (data) {
-            setProjects(prev => [...prev, data[0]]);
         }
+        // SUCCESS: Do nothing here. 
+        // The Realtime Subscription (projectSubscription) in useEffect 
+        // will automatically catch the INSERT event and update the state.
     };
 
     const updateProject = async (id, updates) => {
