@@ -14,8 +14,17 @@ const Login = ({ onLogin }) => {
 
     const handleSubmit = (e) => {
         e.preventDefault();
-        // Simple PIN check (same for both for MVP)
-        if (pin === '0000' || pin === '1234' || pin === 'admin') {
+
+        let isValid = false;
+
+        // Specific PINs
+        if (selectedUser === 'samuel' && (pin === '0000' || pin === 'admin')) {
+            isValid = true;
+        } else if (selectedUser === 'sergi' && pin === '1111') {
+            isValid = true;
+        }
+
+        if (isValid) {
             onLogin(users.find(u => u.id === selectedUser));
         } else {
             setError(true);
@@ -123,6 +132,10 @@ const Login = ({ onLogin }) => {
                             Entrar <ArrowRight size={18} />
                         </button>
                     </form>
+
+                    <p style={{ marginTop: '24px', fontSize: '11px', color: 'var(--color-text-secondary)', opacity: 0.6 }}>
+                        PIN por defecto: {selectedUser === 'samuel' ? '0000' : '1111'}
+                    </p>
                 </div>
             )}
         </div>

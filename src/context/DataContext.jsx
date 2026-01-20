@@ -42,7 +42,7 @@ export const DataProvider = ({ children, currentUser }) => {
 
         fetchData();
 
-        // Realtime Subscription
+        // Realtime Subscription (Tasks)
         const taskSubscription = supabase
             .channel('public:tasks')
             .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks' }, (payload) => {
@@ -68,8 +68,23 @@ export const DataProvider = ({ children, currentUser }) => {
             })
             .subscribe();
 
+        // Realtime Subscription (Projects)
+        const projectSubscription = supabase
+            .channel('public:projects')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'projects' }, (payload) => {
+                if (payload.eventType === 'INSERT') {
+                    setProjects(prev => [...prev, payload.new]);
+                } else if (payload.eventType === 'UPDATE') {
+                    setProjects(prev => prev.map(p => p.id === payload.new.id ? payload.new : p));
+                } else if (payload.eventType === 'DELETE') {
+                    setProjects(prev => prev.filter(p => p.id !== payload.old.id));
+                }
+            })
+            .subscribe();
+
         return () => {
             supabase.removeChannel(taskSubscription);
+            supabase.removeChannel(projectSubscription);
         };
     }, []);
 
@@ -118,14 +133,24 @@ export const DataProvider = ({ children, currentUser }) => {
         if (error) console.error('Error deleting task:', error);
     };
 
-    // Projects (Simplified for MVP, usually similar structure)
+    // Projects
     const addProject = async (project) => {
-        const { error } = await supabase.from('projects').insert([project]);
-        if (!error) {
-            // Re-fetch or manual update? Realtime is best.
-            // For now assume manual fetch or just let realtime handle it if we add subscription.
-            // Adding manual state update for now:
-            // setProjects... (need full object including generated ID, skipping for speed)
+        // Map camelCase to snake_case
+        const dbProject = {
+            ...project,
+            created_at: new Date().toISOString()
+        };
+        // If we have specific fields that need mapping, do it here.
+        // Currently Projects seems to use simple fields (title, status, description, color).
+        // If due_date is added later, we'd map it here.
+
+        const { data, error } = await supabase.from('projects').insert([dbProject]).select();
+
+        if (error) {
+            console.error('Error adding project:', error);
+            alert('Error adding project. Check console.');
+        } else if (data) {
+            setProjects(prev => [...prev, data[0]]);
         }
     };
 
