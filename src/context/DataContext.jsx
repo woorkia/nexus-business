@@ -73,7 +73,11 @@ export const DataProvider = ({ children, currentUser }) => {
             .channel('public:projects')
             .on('postgres_changes', { event: '*', schema: 'public', table: 'projects' }, (payload) => {
                 if (payload.eventType === 'INSERT') {
-                    setProjects(prev => [...prev, payload.new]);
+                    setProjects(prev => {
+                        // Prevent duplicates
+                        if (prev.some(p => p.id === payload.new.id)) return prev;
+                        return [...prev, payload.new];
+                    });
                 } else if (payload.eventType === 'UPDATE') {
                     setProjects(prev => prev.map(p => p.id === payload.new.id ? payload.new : p));
                 } else if (payload.eventType === 'DELETE') {
